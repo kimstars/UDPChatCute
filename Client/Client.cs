@@ -53,19 +53,44 @@ namespace Client
         private void Client_Load(object sender, EventArgs e)
         {
             this.displayMessageDelegate = new DisplayMessageDelegate(this.DisplayMessage);
-
+            txtMessClient.KeyDown += new KeyEventHandler(tb_KeyDown);
         }
         #endregion
 
 
         #region Other Methods
 
+        private void tb_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                try
+                {
+                    Packet sendData = new Packet();
+                    sendData.ChatName = this.name;
+                    sendData.ChatMessage = txtMessClient.Text.Trim();
+                    sendData.ChatDataIdentifier = DataIdentifier.Message;
+
+                    byte[] byteData = sendData.GetDataStream();
+
+                    clientSocket.BeginSendTo(byteData, 0, byteData.Length, SocketFlags.None, epServer, new AsyncCallback(this.SendData), null);
+
+                    txtMessClient.Text = string.Empty;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Send Error: " + ex.Message, "UDP Client", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
         private void DisplayMessage(string messge)
         {
             txtMsgAll.Text += messge + Environment.NewLine;
         }
 
         #endregion
+
+
 
         private void btnConnect_Click(object sender, EventArgs e)
         {
@@ -122,16 +147,20 @@ namespace Client
         {
             try
             {
-                this.clientSocket.EndReceive(ar);
-                Packet receivedData = new Packet(this.dataStream);
-
-                if (receivedData.ChatMessage != null)
+                if (epServer != null)
                 {
-                    this.Invoke(this.displayMessageDelegate, new object[] { receivedData.ChatMessage });
 
-                    this.dataStream = new byte[1024];
+                    this.clientSocket.EndReceive(ar);
+                    Packet receivedData = new Packet(this.dataStream);
 
-                    clientSocket.BeginReceiveFrom(this.dataStream, 0, this.dataStream.Length, SocketFlags.None, ref epServer, new AsyncCallback(this.ReceiveData), null);
+                    if (receivedData.ChatMessage != null)
+                    {
+                        this.Invoke(this.displayMessageDelegate, new object[] { receivedData.ChatMessage });
+
+                        this.dataStream = new byte[1024];
+
+                        clientSocket.BeginReceiveFrom(this.dataStream, 0, this.dataStream.Length, SocketFlags.None, ref epServer, new AsyncCallback(this.ReceiveData), null);
+                    }
                 }
 
             }
@@ -149,19 +178,23 @@ namespace Client
         {
             try
             {
-                if(this.clientSocket != null)
+                if (epServer != null)
                 {
-                    Packet sendData = new Packet();
-                    sendData.ChatDataIdentifier = DataIdentifier.LogOut;
-                    sendData.ChatName = this.name;
-                    sendData.ChatMessage = null;
+                    if (this.clientSocket != null)
+                    {
+                        Packet sendData = new Packet();
+                        sendData.ChatDataIdentifier = DataIdentifier.LogOut;
+                        sendData.ChatName = this.name;
+                        sendData.ChatMessage = null;
 
-                    byte[] byteData = sendData.GetDataStream();
-                    this.clientSocket.SendTo(byteData, 0, byteData.Length, SocketFlags.None, epServer);
+                        byte[] byteData = sendData.GetDataStream();
+                        this.clientSocket.SendTo(byteData, 0, byteData.Length, SocketFlags.None, epServer);
 
-                    this.clientSocket.Close();
+                        this.clientSocket.Close();
+                    }
                 }
-            }catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show("Closing Error: " + ex.Message, "UDP Client", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
@@ -189,7 +222,7 @@ namespace Client
             }
         }
 
-    
+
 
         private void btnDisconnect_Click(object sender, EventArgs e)
         {
